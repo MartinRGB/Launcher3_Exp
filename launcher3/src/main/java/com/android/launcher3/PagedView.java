@@ -252,8 +252,6 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
 
         setDefaultInterpolator(new AnimUtils.CubicBezierInterpolator(0.f,0.f,1.f,0.f));
 
-
-
         mCurrentPage = 0;
         mCenterPagesVertically = true;
 
