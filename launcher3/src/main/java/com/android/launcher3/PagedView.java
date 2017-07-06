@@ -32,6 +32,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.support.v4.view.animation.FastOutLinearInInterpolator;
+import android.support.v4.view.animation.FastOutSlowInInterpolator;
+import android.support.v4.view.animation.LinearOutSlowInInterpolator;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -47,7 +50,9 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.animation.Interpolator;
+import android.view.animation.PathInterpolator;
 
+import com.android.launcher3.util.AnimUtils;
 import com.android.launcher3.util.LauncherEdgeEffect;
 import com.android.launcher3.util.Thunk;
 
@@ -241,7 +246,14 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
      */
     protected void init() {
         mScroller = new LauncherScroller(getContext());
-        setDefaultInterpolator(new ScrollInterpolator());
+
+        //Deafult
+        //setDefaultInterpolator(new AnimUtils.ScrollInterpolator());
+
+        setDefaultInterpolator(new AnimUtils.CubicBezierInterpolator(0.f,0.f,1.f,0.f));
+
+
+
         mCurrentPage = 0;
         mCenterPagesVertically = true;
 
@@ -1984,15 +1996,6 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
         snapToPage(getPageNearestToCenterOfScreen(), PAGE_SNAP_ANIMATION_DURATION);
     }
 
-    private static class ScrollInterpolator implements Interpolator {
-        public ScrollInterpolator() {
-        }
-
-        public float getInterpolation(float t) {
-            t -= 1.0f;
-            return t*t*t*t*t + 1;
-        }
-    }
 
     // We want the duration of the page snap animation to be influenced by the distance that
     // the screen has to travel, however, we don't want this duration to be effected in a
