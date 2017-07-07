@@ -1246,6 +1246,7 @@ public class Workspace extends PagedView
         if (mStartedSendingScrollEvents) {
             mStartedSendingScrollEvents = false;
             mLauncherOverlay.onScrollInteractionEnd();
+
         }
     }
 
@@ -1278,6 +1279,7 @@ public class Workspace extends PagedView
             mLastOverlaySroll = progress;
             mLauncherOverlay.onScrollChange(progress, mIsRtl);
         } else if (shouldOverScroll) {
+            //过量滚动
             dampedOverScroll(amount);
         }
 
@@ -1330,6 +1332,7 @@ public class Workspace extends PagedView
     }
 
     protected void snapToPage(int whichPage, Runnable r) {
+        Log.e(TAG,"SLOWWWWW ANIM");
         snapToPage(whichPage, SLOW_PAGE_SNAP_ANIMATION_DURATION, r);
     }
 
@@ -1338,7 +1341,7 @@ public class Workspace extends PagedView
             mDelayedSnapToPageRunnable.run();
         }
         mDelayedSnapToPageRunnable = r;
-        snapToPage(whichPage, duration);
+        snapToPageSlowAnimation(whichPage, duration);
     }
 
     public void snapToScreenId(long screenId) {
@@ -2617,6 +2620,7 @@ public class Workspace extends PagedView
             final int[] touchXY = new int[] { (int) mDragViewVisualCenter[0],
                     (int) mDragViewVisualCenter[1] };
             onDropExternal(touchXY, d.dragInfo, dropTargetLayout, false, d);
+            Log.e("Workspace","屏幕外拖动图标");
         } else if (mDragInfo != null) {
             final View cell = mDragInfo.cell;
 

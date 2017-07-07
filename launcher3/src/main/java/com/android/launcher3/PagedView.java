@@ -32,9 +32,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.support.v4.view.animation.FastOutLinearInInterpolator;
-import android.support.v4.view.animation.FastOutSlowInInterpolator;
-import android.support.v4.view.animation.LinearOutSlowInInterpolator;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -50,9 +47,11 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.animation.Interpolator;
-import android.view.animation.PathInterpolator;
 
-import com.android.launcher3.util.AnimUtils;
+import com.android.launcher3.AnimUtils.AnimUtils;
+import com.android.launcher3.AnimUtils.Equartion.BouncerEquation;
+import com.android.launcher3.AnimUtils.Equartion.DampingOscillatorEquation;
+import com.android.launcher3.AnimUtils.Simulator.SpringSimulator;
 import com.android.launcher3.util.LauncherEdgeEffect;
 import com.android.launcher3.util.Thunk;
 
@@ -64,14 +63,32 @@ import java.util.ArrayList;
  */
 public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarchyChangeListener {
     private static final String TAG = "PagedView";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
     protected static final int INVALID_PAGE = -1;
+
+    //屏幕Scroll跟手
+    private Interpolator mScrollerInterpolator = new AnimUtils.ScrollInterpolator();
+
+    //*** 屏幕Snap滚动
+    private Interpolator lowVelocitySnapInterpolator = new AnimUtils.SpringInterpolator();
+    private Interpolator highVelocitySnapInterpolator = new AnimUtils.SpringInterpolator();
+    private Interpolator originalPlaceSnapInterpolator = new AnimUtils.SpringInterpolator();
+    protected static final int PAGE_SNAP_ANIMATION_DURATION = 500;
+
+    //*** 屏幕外放置图标
+    private Interpolator slowAnimationSnapInterpolator = null;
+    protected static final int SLOW_PAGE_SNAP_ANIMATION_DURATION = 750;
+
+    //*** 关闭OverScroll & 过量 Or 高光
+    protected boolean mAllowOverScroll = true;
+    protected static int OVER_SCROLL_STYLE_GLOW = 0;
+    protected static int OVER_SCROLL_STYLE_MOVING = 1;
+    protected static int CHOOSED_OVER_SCROOL_STYLE = OVER_SCROLL_STYLE_MOVING;
+
 
     // the min drag distance for a fling to register, to prevent random page shifts
     private static final int MIN_LENGTH_FOR_FLING = 25;
 
-    protected static final int PAGE_SNAP_ANIMATION_DURATION = 750;
-    protected static final int SLOW_PAGE_SNAP_ANIMATION_DURATION = 950;
     protected static final float NANOTIME_DIV = 1000000000.0f;
 
     private static final float RETURN_TO_ORIGINAL_PAGE_THRESHOLD = 0.33f;
@@ -152,7 +169,6 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
     protected int mCellCountX = 0;
     protected int mCellCountY = 0;
     protected boolean mCenterPagesVertically;
-    protected boolean mAllowOverScroll = true;
     protected int[] mTempVisiblePagesRange = new int[2];
     protected boolean mForceDrawAllChildrenNextFrame;
 
@@ -247,10 +263,11 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
     protected void init() {
         mScroller = new LauncherScroller(getContext());
 
-        //Deafult
-        //setDefaultInterpolator(new AnimUtils.ScrollInterpolator());
 
-        setDefaultInterpolator(new AnimUtils.CubicBezierInterpolator(0.f,0.f,1.f,0.f));
+        //Deafult Scroller InterPolator
+        setDefaultInterpolator(mScrollerInterpolator);
+
+        Log.e(TAG,"初始化了");
 
         mCurrentPage = 0;
         mCenterPagesVertically = true;
@@ -591,21 +608,34 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
         if (isXBeforeFirstPage) {
             super.scrollTo(mIsRtl ? mMaxScrollX : 0, y);
             if (mAllowOverScroll) {
-                mWasInOverscroll = true;
-                if (mIsRtl) {
-                    overScroll(x - mMaxScrollX);
-                } else {
-                    overScroll(x);
+
+                if(CHOOSED_OVER_SCROOL_STYLE == OVER_SCROLL_STYLE_GLOW){
+
+                    mWasInOverscroll = true;
+                    if (mIsRtl) {
+                        overScroll(x - mMaxScrollX);
+                    } else {
+                        overScroll(x);
+                    }
+                }
+                else if(CHOOSED_OVER_SCROOL_STYLE == OVER_SCROLL_STYLE_MOVING){
+                    super.scrollTo(x,y);
                 }
             }
         } else if (isXAfterLastPage) {
             super.scrollTo(mIsRtl ? 0 : mMaxScrollX, y);
             if (mAllowOverScroll) {
-                mWasInOverscroll = true;
-                if (mIsRtl) {
-                    overScroll(x);
-                } else {
-                    overScroll(x - mMaxScrollX);
+                if(CHOOSED_OVER_SCROOL_STYLE == OVER_SCROLL_STYLE_GLOW) {
+                    mWasInOverscroll = true;
+                    if (mIsRtl) {
+                        overScroll(x);
+                    } else {
+                        overScroll(x - mMaxScrollX);
+                    }
+                }
+
+                else if(CHOOSED_OVER_SCROOL_STYLE == OVER_SCROLL_STYLE_MOVING){
+                    super.scrollTo(x,y);
                 }
             }
         } else {
@@ -729,7 +759,6 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
 
     public void addFullScreenPage(View page) {
         LayoutParams lp = generateDefaultLayoutParams();
-        lp.isFullScreenPage = true;
         super.addView(page, 0, lp);
     }
 
@@ -1416,11 +1445,14 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 resetTouchState();
+                Log.e(TAG,"ACTION_CANCEL");
                 break;
 
             case MotionEvent.ACTION_POINTER_UP:
                 onSecondaryPointerUp(ev);
                 releaseVelocityTracker();
+                Log.e(TAG,"ACTION_POINTER_UP");
+
                 break;
         }
 
@@ -1499,6 +1531,7 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
         float scrollProgress = delta / (totalDistance * 1.0f);
         scrollProgress = Math.min(scrollProgress, MAX_SCROLL_PROGRESS);
         scrollProgress = Math.max(scrollProgress, - MAX_SCROLL_PROGRESS);
+
         return scrollProgress;
     }
 
@@ -1529,9 +1562,11 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
         }
     }
 
+    //过量滚动效果
     protected void dampedOverScroll(float amount) {
         int screenSize = getViewportWidth();
         float f = (amount / screenSize);
+        Log.e(TAG,"过量滚动了");
         if (f < 0) {
             mEdgeGlowLeft.onPull(-f);
         } else if (f > 0) {
@@ -1662,12 +1697,15 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
                 if (Math.abs(deltaX) >= 1.0f) {
                     mTouchX += deltaX;
                     mSmoothingTime = System.nanoTime() / NANOTIME_DIV;
+                    //右面的如果给一个 正整数，则每次监听后都传一个持续增量
                     scrollBy((int) deltaX, 0);
                     mLastMotionX = x;
                     mLastMotionXRemainder = deltaX - (int) deltaX;
                 } else {
                     awakenScrollBars();
                 }
+                //Log.e(TAG,"滚动过程中");
+
             } else if (mTouchState == TOUCH_STATE_REORDERING) {
                 // Update the last motion position
                 mLastMotionX = ev.getX();
@@ -1769,6 +1807,10 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
 
                 mTotalMotionX += Math.abs(mLastMotionX + mLastMotionXRemainder - x);
 
+                Log.e(TAG,"抬指");
+
+                //mScreenSnapVelocity = Math.abs(velocityX);
+
                 boolean isFling = mTotalMotionX > MIN_LENGTH_FOR_FLING &&
                         Math.abs(velocityX) > mFlingThresholdVelocity;
 
@@ -1788,6 +1830,8 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
                     // move to the left and fling to the right will register as a fling to the right.
                     boolean isDeltaXLeft = mIsRtl ? deltaX > 0 : deltaX < 0;
                     boolean isVelocityXLeft = mIsRtl ? velocityX > 0 : velocityX < 0;
+
+                    //判断Snap到哪儿
                     if (((isSignificantMove && !isDeltaXLeft && !isFling) ||
                             (isFling && !isVelocityXLeft)) && mCurrentPage > 0) {
                         finalPage = returnToOriginalPage ? mCurrentPage : mCurrentPage - 1;
@@ -1799,11 +1843,13 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
                         snapToPageWithVelocity(finalPage, velocityX);
                     } else {
                         snapToDestination();
+                        Log.e(TAG,"恢复原位置");
                     }
                 } else {
                     if (!mScroller.isFinished()) {
                         abortScrollerAnimation(true);
                     }
+
 
                     float scaleX = getScaleX();
                     int vX = (int) (-velocityX * scaleX);
@@ -1882,6 +1928,9 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
         mActivePointerId = INVALID_POINTER;
         mEdgeGlowLeft.onRelease();
         mEdgeGlowRight.onRelease();
+
+        Log.e("PageView","Glow 开始");
+
     }
 
     /**
@@ -1991,7 +2040,7 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
     }
 
     protected void snapToDestination() {
-        snapToPage(getPageNearestToCenterOfScreen(), PAGE_SNAP_ANIMATION_DURATION);
+        snapToPage(getPageNearestToCenterOfScreen(), PAGE_SNAP_ANIMATION_DURATION,false,originalPlaceSnapInterpolator);
     }
 
 
@@ -2016,7 +2065,8 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
         if (Math.abs(velocity) < mMinFlingVelocity) {
             // If the velocity is low enough, then treat this more as an automatic page advance
             // as opposed to an apparent physical response to flinging
-            snapToPage(whichPage, PAGE_SNAP_ANIMATION_DURATION);
+            snapToPage(whichPage, PAGE_SNAP_ANIMATION_DURATION,false,lowVelocitySnapInterpolator);
+            Log.e("Snap","小速度Snap");
             return;
         }
 
@@ -2036,7 +2086,14 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
         // interpolator at zero, ie. 5. We use 4 to make it a little slower.
         duration = 4 * Math.round(1000 * Math.abs(distance / velocity));
 
-        snapToPage(whichPage, delta, duration);
+        //*** Failed
+//        Double floatDuration = 4.0 * (1000 * Math.abs(distance / velocity));
+//        DampingOscillatorEquation dampingOscillatorEquation = new BouncerEquation(1.f,0.f,12.f,0.058f,0.3f);
+//        SpringSimulator springSimulator = new SpringSimulator(dampingOscillatorEquation);
+//        springSimulator.setTime(floatDuration);
+
+        Log.e("Snap","快速Snap");
+        snapToPage(whichPage, delta, duration,false,highVelocitySnapInterpolator);
     }
 
     public void snapToPage(int whichPage) {
@@ -2049,6 +2106,10 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
 
     protected void snapToPage(int whichPage, int duration) {
         snapToPage(whichPage, duration, false, null);
+    }
+
+    protected void snapToPageSlowAnimation(int whichPage, int duration) {
+        snapToPage(whichPage, duration, false, slowAnimationSnapInterpolator);
     }
 
     protected void snapToPage(int whichPage, int duration, TimeInterpolator interpolator) {

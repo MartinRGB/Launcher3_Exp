@@ -1,15 +1,10 @@
-package com.android.launcher3.util;
+package com.android.launcher3.AnimUtils;
 
-import android.content.Context;
-import android.graphics.PointF;
-import android.support.v4.view.animation.LinearOutSlowInInterpolator;
-import android.view.animation.AccelerateDecelerateInterpolator;
-import android.view.animation.AnimationUtils;
+import android.util.Log;
 import android.view.animation.Interpolator;
-import android.view.animation.LinearInterpolator;
-import android.view.animation.PathInterpolator;
+import android.graphics.PointF;
 
-import com.android.launcher3.R;
+import com.android.launcher3.AnimUtils.Equartion.DampingOscillatorEquation;
 
 /**
  * Created by MartinRGB on 2017/7/6.
@@ -22,8 +17,61 @@ public class AnimUtils {
     //http://jroller.com/gfx/entry/real_world_physics_in_swing
     //https://twitter.com/crafty/status/842055117323026432
 
+    //NOTICE 当Scroll结束后，ScrollInterpolaotr的值应该想办法传给下一个 Interpolator，否则会跳值
+
+    public static class MIUIOvershootInterpolator implements Interpolator {
+        private float mTension; //MIUI - 1.3f
+
+        public MIUIOvershootInterpolator(float tension) {
+
+            mTension = tension;
 
 
+        }
+
+        public void setDistance(int distance) {
+            mTension = distance > 0
+                    ? mTension / distance
+                    : mTension;
+
+            Log.e("MTenson",String.valueOf(mTension));
+        }
+
+//        public void disableSettle() {
+//            mTension = 0.f;
+//        }
+
+        public float getInterpolation(float t) {
+            t -= 1f;
+            return t * t * ((mTension + 1) * t + mTension) + 1f;
+        }
+    }
+
+    public static class DampingInterpolator implements Interpolator{
+
+        protected DampingOscillatorEquation mDampingOscillatorEquation;
+
+        public DampingInterpolator(float amplitude, float phase, float stifness,float mass, float friction) {
+
+            double am = amplitude;
+            double fm = friction;
+            double ma = mass;
+            double ri = stifness;
+            double ph = phase;
+
+            mDampingOscillatorEquation = new DampingOscillatorEquation(am,fm,ma,ri,ph);
+
+        }
+
+        @Override
+        public float getInterpolation(float time) {
+            float mValue = (float) mDampingOscillatorEquation.compute(time);
+            return mValue;
+        }
+    }
+
+
+    //### Scroll Interpolator
     public static class ScrollInterpolator implements Interpolator {
         public ScrollInterpolator() {
         }
@@ -34,6 +82,29 @@ public class AnimUtils {
         }
     }
 
+    public static class SpringInterpolator implements Interpolator {
+
+        private static final float DEFAULT_FACTOR = 0.5f;
+
+        private float mFactor;
+
+        public SpringInterpolator() {
+            this(DEFAULT_FACTOR);
+        }
+
+        public SpringInterpolator(float factor) {
+            mFactor = factor;
+        }
+
+        @Override
+        public float getInterpolation(float input) {
+            // pow(2, -10 * input) * sin((input - factor / 4) * (2 * PI) / factor) + 1
+            return (float) (Math.pow(2, -10 * input) * Math.sin((input - mFactor / 4.0d) * (2.0d * Math.PI) / mFactor) + 1);
+
+        }
+    }
+
+    //### Bezier Function Interpolator
     public static class CubicBezierInterpolator implements Interpolator {
 
         protected PointF start;
@@ -114,6 +185,8 @@ public class AnimUtils {
         }
     }
 
+
+    //### Easing Function Interpolator
     public static class BackEaseInInterpolater implements Interpolator {
         private final float mOvershot;
 
