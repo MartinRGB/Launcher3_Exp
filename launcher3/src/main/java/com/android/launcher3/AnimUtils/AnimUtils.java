@@ -4,8 +4,6 @@ import android.util.Log;
 import android.view.animation.Interpolator;
 import android.graphics.PointF;
 
-import com.android.launcher3.AnimUtils.Equartion.DampingOscillatorEquation;
-
 /**
  * Created by MartinRGB on 2017/7/6.
  */
@@ -19,6 +17,7 @@ public class AnimUtils {
 
     //NOTICE 当Scroll结束后，ScrollInterpolaotr的值应该想办法传给下一个 Interpolator，否则会跳值
 
+    //### MIUI Interpolator
     public static class MIUIOvershootInterpolator implements Interpolator {
         private float mTension; //MIUI - 1.3f
 
@@ -47,29 +46,172 @@ public class AnimUtils {
         }
     }
 
-    public static class DampingInterpolator implements Interpolator{
+    //### Spring Interpolator
+    public static class CustomJellyInterpolator implements Interpolator {
 
-        protected DampingOscillatorEquation mDampingOscillatorEquation;
+        private float factor = 0.6f;
 
-        public DampingInterpolator(float amplitude, float phase, float stifness,float mass, float friction) {
+        public CustomJellyInterpolator(float factor) {
+            this.factor = factor;
+        }
 
-            double am = amplitude;
-            double fm = friction;
-            double ma = mass;
-            double ri = stifness;
-            double ph = phase;
-
-            mDampingOscillatorEquation = new DampingOscillatorEquation(am,fm,ma,ri,ph);
+        public CustomJellyInterpolator() {
 
         }
 
         @Override
-        public float getInterpolation(float time) {
-            float mValue = (float) mDampingOscillatorEquation.compute(time);
-            return mValue;
+        public float getInterpolation(float t) {
+            if (t == 0.0f || t == 1.0f)
+                return t;
+            else {
+                float two_pi = (float) (Math.PI * 2.7f);
+                return (float) Math.pow(2.0f, -10.0f * t) * (float) Math.sin((t - (factor/5.0f)) * two_pi/factor) + 1.0f;
+            }
         }
     }
 
+    public static class CustomSpringInterpolator implements Interpolator{
+
+        private float factor = 0.5f;
+
+        public CustomSpringInterpolator(float factor) {
+            this.factor = factor;
+        }
+
+        public CustomSpringInterpolator() {
+        }
+
+        @Override
+        public float getInterpolation(float t) {
+            if (t == 0.0f || t == 1.0f)
+                return t;
+            else {
+
+                float value = (float) (Math.pow(2, -10 * t) * Math.sin((t - factor / 4.0d) * (2.0d * Math.PI) / factor) + 1);
+                return value;
+            }
+        }
+    }
+
+    public static class CustomDampingInterpolator implements Interpolator{
+
+        //Parameters
+        private static final float maxStifness = 50.f;
+        private static final float maxFrictionMultipler = 1.f;
+        private float mTension = 0.f;
+        private float mFriction = 0.f;
+
+        //Curve Position parameters(No Adjust)
+        private static final float amplitude = 1.f;
+        private static final float phase = 0.f;
+
+        //Original Scale parameters(Better No Adjust)
+        private static final float originalStiffness = 12.f;
+        private static final float originalFrictionMultipler = 0.3f;
+        private static final float mass = 0.058f;
+
+        //Internal parameters
+        private float pulsation;
+        private float friction;
+
+        private void computePulsation() {
+            this.pulsation = (float) Math.sqrt((originalStiffness + mTension) / mass);
+        }
+
+        private void computeFriction() {
+            this.friction = (originalFrictionMultipler + mFriction) * pulsation;
+        }
+
+        private void computeInternalParameters() {
+            // never call computeFriction() without
+            // updating the pulsation
+            computePulsation();
+            computeFriction();
+        }
+
+        public CustomDampingInterpolator( float tension, float friction) {
+
+            this.mTension = Math.min(Math.max(tension,0.f),100.f) * (maxStifness- originalStiffness)/100.f;
+            this.mFriction = Math.min(Math.max(friction,0.f),100.f) * (maxFrictionMultipler - originalFrictionMultipler)/100.f;
+
+            computeInternalParameters();
+        }
+
+        public CustomDampingInterpolator() {
+            computeInternalParameters();
+        }
+
+        @Override
+        public float getInterpolation(float t) {
+            if (t == 0.0f || t == 1.0f)
+                return t;
+            else {
+                float value = amplitude * (float) Math.exp(-friction * t) *
+                        (float) Math.cos(pulsation * t + phase) ;
+                return -value+1;
+            }
+        }
+    }
+
+    public static class CustomBouncerInterpolator implements Interpolator{
+
+        //Parameters
+        private static final float maxStifness = 50.f;
+        private static final float maxFrictionMultipler = 1.f;
+        private float mTension = 0.f;
+        private float mFriction = 0.f;
+
+        //Curve Position parameters(No Adjust)
+        private static final float amplitude = 1.f;
+        private static final float phase = 0.f;
+
+        //Original Scale parameters(Better No Adjust)
+        private static final float originalStiffness = 12.f;
+        private static final float originalFrictionMultipler = 0.3f;
+        private static final float mass = 0.058f;
+
+        //Internal parameters
+        private float pulsation;
+        private float friction;
+
+        private void computePulsation() {
+            this.pulsation = (float) Math.sqrt((originalStiffness + mTension) / mass);
+        }
+
+        private void computeFriction() {
+            this.friction = (originalFrictionMultipler + mFriction) * pulsation;
+        }
+
+        private void computeInternalParameters() {
+            // never call computeFriction() without
+            // updating the pulsation
+            computePulsation();
+            computeFriction();
+        }
+
+        public CustomBouncerInterpolator( float tension, float friction) {
+
+            this.mTension = Math.min(Math.max(tension,0.f),100.f) * (maxStifness- originalStiffness)/100.f;
+            this.mFriction = Math.min(Math.max(friction,0.f),100.f) * (maxFrictionMultipler - originalFrictionMultipler)/100.f;
+
+            computeInternalParameters();
+        }
+
+        public CustomBouncerInterpolator() {
+            computeInternalParameters();
+        }
+
+        @Override
+        public float getInterpolation(float t) {
+            if (t == 0.0f || t == 1.0f)
+                return t;
+            else {
+                float value = amplitude * (float) Math.exp(-friction * t) *
+                        (float) Math.cos(pulsation * t + phase) ;
+                return -Math.abs(value)+1.f;
+            }
+        }
+    }
 
     //### Scroll Interpolator
     public static class ScrollInterpolator implements Interpolator {
@@ -79,28 +221,6 @@ public class AnimUtils {
         public float getInterpolation(float t) {
             t -= 1.0f;
             return t*t*t*t*t + 1;
-        }
-    }
-
-    public static class SpringInterpolator implements Interpolator {
-
-        private static final float DEFAULT_FACTOR = 0.5f;
-
-        private float mFactor;
-
-        public SpringInterpolator() {
-            this(DEFAULT_FACTOR);
-        }
-
-        public SpringInterpolator(float factor) {
-            mFactor = factor;
-        }
-
-        @Override
-        public float getInterpolation(float input) {
-            // pow(2, -10 * input) * sin((input - factor / 4) * (2 * PI) / factor) + 1
-            return (float) (Math.pow(2, -10 * input) * Math.sin((input - mFactor / 4.0d) * (2.0d * Math.PI) / mFactor) + 1);
-
         }
     }
 

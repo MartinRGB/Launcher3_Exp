@@ -49,9 +49,6 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.animation.Interpolator;
 
 import com.android.launcher3.AnimUtils.AnimUtils;
-import com.android.launcher3.AnimUtils.Equartion.BouncerEquation;
-import com.android.launcher3.AnimUtils.Equartion.DampingOscillatorEquation;
-import com.android.launcher3.AnimUtils.Simulator.SpringSimulator;
 import com.android.launcher3.util.LauncherEdgeEffect;
 import com.android.launcher3.util.Thunk;
 
@@ -70,9 +67,9 @@ public abstract class PagedView extends ViewGroup implements ViewGroup.OnHierarc
     private Interpolator mScrollerInterpolator = new AnimUtils.ScrollInterpolator();
 
     //*** 屏幕Snap滚动
-    private Interpolator lowVelocitySnapInterpolator = new AnimUtils.SpringInterpolator();
-    private Interpolator highVelocitySnapInterpolator = new AnimUtils.SpringInterpolator();
-    private Interpolator originalPlaceSnapInterpolator = new AnimUtils.SpringInterpolator();
+    private Interpolator lowVelocitySnapInterpolator = new AnimUtils.ScrollInterpolator();
+    private Interpolator highVelocitySnapInterpolator = new AnimUtils.ScrollInterpolator();
+    private Interpolator originalPlaceSnapInterpolator = new AnimUtils.ScrollInterpolator();
     protected static final int PAGE_SNAP_ANIMATION_DURATION = 500;
 
     //*** 屏幕外放置图标
