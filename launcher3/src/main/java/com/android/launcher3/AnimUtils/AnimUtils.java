@@ -17,8 +17,8 @@ public class AnimUtils {
 
     //NOTICE 当Scroll结束后，ScrollInterpolaotr的值应该想办法传给下一个 Interpolator，否则会跳值
 
-    //### MIUI Interpolator
-    public static class MIUIOvershootInterpolator implements Interpolator {
+    //### M Interpolator
+    public static class MOvershootInterpolator implements Interpolator {
         private float mTension; //MIUI - 1.3f
 
         public MIUIOvershootInterpolator(float tension) {
